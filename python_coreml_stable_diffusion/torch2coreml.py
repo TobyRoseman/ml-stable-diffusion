@@ -121,11 +121,42 @@ def _convert_to_coreml(submodule_name, torchscript_module, sample_inputs,
         coreml_model.compute_unit = compute_unit
     else:
         logger.info(f"Converting {submodule_name} to CoreML..")
+
+        if submodule_name == 'unet':
+            sample_shape = ct.EnumeratedShapes(
+                shapes=[
+                    (2, 4, 64, 64),
+                    (2, 4, 48, 48),
+                    (2, 4, 32, 32)
+                ],
+                default=(2, 4, 64, 64)
+            )
+            inputs = [
+                ct.TensorType(name="sample", shape=sample_shape, dtype=np.float16),
+                ct.TensorType(name="timestep", shape=(2,), dtype=np.float16),
+                ct.TensorType(name="encoder_hidden_states", shape=(2, 768, 1, 77), dtype=np.float16),
+            ]
+
+        elif submodule_name == 'vae_decoder':
+            z_shape = ct.EnumeratedShapes(
+                shapes=[
+                    (1, 4, 64, 64),
+                    (1, 4, 32, 32)
+                ],
+                default=(1, 4, 64, 64)
+            )
+            inputs = [
+                ct.TensorType(name="z", shape=z_shape, dtype=np.float16),
+            ]
+
+        else:
+            inputs = _get_coreml_inputs(sample_inputs, args)
+        
         coreml_model = ct.convert(
             torchscript_module,
             convert_to="mlprogram",
             minimum_deployment_target=ct.target.macOS13,
-            inputs=_get_coreml_inputs(sample_inputs, args),
+            inputs=inputs,
             outputs=[ct.TensorType(name=name, dtype=np.float32) for name in output_names],
             compute_units=compute_unit,
             compute_precision=precision,
@@ -413,6 +444,7 @@ def convert_text_encoder(text_encoder, tokenizer, submodule_name, args):
     gc.collect()
 
 
+# XXX
 def modify_coremltools_torch_frontend_badbmm():
     """
     Modifies coremltools torch frontend for baddbmm to be robust to the `beta` argument being of non-float dtype:
@@ -480,7 +512,7 @@ def convert_vae_decoder(pipe, args):
         1,  # B
         pipe.vae.config.latent_channels,  # C
         args.latent_h or pipe.unet.config.sample_size,  # H
-        args.latent_w or pipe.unet.config.sample_size,  # w
+        args.latent_w or pipe.unet.config.sample_size,  # W
     )
 
     if args.custom_vae_version is None and args.xl_version:
@@ -515,6 +547,9 @@ def convert_vae_decoder(pipe, args):
     traced_vae_decoder = torch.jit.trace(
         baseline_decoder, (sample_vae_decoder_inputs["z"].to(torch.float32), ))
 
+    # Save torch model to compare against core ml model for enum flex shapes
+    torch.jit.save(traced_vae_decoder, "debug/decoder.pt")
+    
     modify_coremltools_torch_frontend_badbmm()
     coreml_vae_decoder, out_path = _convert_to_coreml(
         "vae_decoder", traced_vae_decoder, sample_vae_decoder_inputs,
@@ -824,6 +859,10 @@ def convert_unet(pipe, args, model_name = None):
         logger.info("JIT tracing..")
         reference_unet = torch.jit.trace(reference_unet,
                                          list(sample_unet_inputs.values()))
+
+        # Save torch model to compare against core ml model for enum flex shapes
+        torch.jit.save(reference_unet, "debug/unet.pt")
+        
         logger.info("Done.")
 
         if args.check_output_correctness:
@@ -840,7 +879,6 @@ def convert_unet(pipe, args, model_name = None):
             k: v.numpy().astype(np.float16)
             for k, v in sample_unet_inputs.items()
         }
-
 
         coreml_unet, out_path = _convert_to_coreml(unet_name, reference_unet,
                                                    coreml_sample_unet_inputs,
@@ -1465,7 +1503,7 @@ def parser_spec():
         "--check-output-correctness",
         action="store_true",
         help=
-        "If specified, compares the outputs of original PyTorch and final CoreML models and reports PSNR in dB. "
+        "If specified, compares the outputs of original PyTorch and final CoreML model(s) and reports PSNR in dB. "
         "Enabling this feature uses more memory. Disable it if your machine runs out of memory."
         )
     parser.add_argument(

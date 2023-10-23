@@ -4,7 +4,14 @@
 #
 
 import argparse
+import gc
+import inspect
+import logging
+import os
+import time
+from typing import List, Optional, Union, Tuple
 
+from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.schedulers import (
@@ -17,17 +24,13 @@ from diffusers.schedulers import (
 )
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
 
-import gc
-import inspect
-
-import logging
 
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 import numpy as np
-import os
+
 
 from python_coreml_stable_diffusion.coreml_model import (
     CoreMLModel,
@@ -36,10 +39,8 @@ from python_coreml_stable_diffusion.coreml_model import (
     get_available_compute_units,
 )
 
-import time
 import torch  # Only used for `torch.from_tensor` in `pipe.scheduler.step()`
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
-from typing import List, Optional, Union, Tuple
 from PIL import Image
 
 
@@ -517,7 +518,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                 control_net_additional_residuals = {}
 
             # predict the noise residual
-            unet_additional_kwargs = unet_additional_kwargs | control_net_additional_residuals
+            unet_additional_kwargs.update(control_net_additional_residuals)
 
             noise_pred = self.unet(
                 sample=latent_model_input.astype(np.float16),
@@ -697,7 +698,6 @@ def main(args):
 
     logger.info("Initializing PyTorch pipe for reference configuration")
 
-    from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
     SDP = StableDiffusionXLPipeline if 'xl' in args.model_version else StableDiffusionPipeline
 
     pytorch_pipe = SDP.from_pretrained(
@@ -737,6 +737,7 @@ def main(args):
         controlnet_cond = None
 
     logger.info("Beginning image generation.")
+    
     image = coreml_pipe(
         prompt=args.prompt,
         height=coreml_pipe.height,

@@ -971,14 +971,14 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin):
     ):
         # 0. Project (or look-up) time embeddings
         t_emb = self.time_proj(timestep)
-        emb = self.time_embedding(t_emb)
+        emb = self.time_embedding(t_emb)    # ([2, 1280, 1, 1])
 
         # 1. center input if necessary
         if self.config.center_input_sample:
             sample = 2 * sample - 1.0
 
         # 2. pre-process
-        sample = self.conv_in(sample)
+        sample = self.conv_in(sample)    # (2, 320, 96, 96)
 
         # 3. down
         down_block_res_samples = (sample, )
@@ -1007,6 +1007,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin):
         sample = self.mid_block(sample,
                                 emb,
                                 encoder_hidden_states=encoder_hidden_states)
+        # (2, 1280, 12, 12)
 
         if additional_residuals:
             sample = sample + additional_residuals[-1]
@@ -1030,6 +1031,9 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin):
                                         temb=emb,
                                         res_hidden_states_tuple=res_samples)
 
+
+        # (2, 320, 48, 48)
+        
         # 6. post-process
         sample = self.conv_norm_out(sample)
         sample = self.conv_act(sample)
