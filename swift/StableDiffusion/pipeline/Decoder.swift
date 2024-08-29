@@ -55,6 +55,11 @@ public struct Decoder: ResourceManaging {
         }
         let batch = MLArrayBatchProvider(array: inputs)
 
+        print("DEBUG")
+        print(scaleFactor)     // 0.18215
+        print(shiftFactor)     // 0.0
+        print("DEBUG")
+        
         // Batch predict with model
         let results = try model.perform { model in
             try model.predictions(fromBatch: batch)

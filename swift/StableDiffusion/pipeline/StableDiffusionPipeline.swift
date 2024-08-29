@@ -319,6 +319,14 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
             unet.unloadResources()
         }
 
+        /*
+        print("DEBUG")
+        //print(denoisedLatents.count)      // 1
+        //print(denoisedLatents[0].shape)   // (1, 4, 64, 64)
+        //print(denoisedLatents[0].scalars)
+        print(denoisedLatents[0][0][3][42][42].scalars)
+        print("DEBUG")*/
+        
         // Decode the latent samples to images
         return try decodeToImages(denoisedLatents, configuration: config)
     }

@@ -313,7 +313,8 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
     def decode_latents(self, latents):
         latents = 1 / 0.18215 * latents
         dtype = self.vae_decoder.expected_inputs['z']['dtype']
-        image = self.vae_decoder(z=latents.astype(dtype))["image"]
+        y = self.vae_decoder(z=latents.astype(dtype))
+        image = y["image"]
         image = np.clip(image / 2 + 0.5, 0, 1)
         image = image.transpose((0, 2, 3, 1))
 
@@ -545,7 +546,17 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                 callback(i, t, latents)
 
         # 8. Post-processing
-        image = self.decode_latents(latents)
+
+        #import ipdb; ipdb.set_trace()
+
+        with open('./swift-1234-denoisedlatents.txt', 'r') as f:
+            d = f.read()
+        a = eval(d)
+        a = np.array(a).astype('float32')
+        a = a.reshape(1, 4, 64, 64)
+        image = self.decode_latents(a)
+
+        #image = self.decode_latents(latents)
 
         # 9. Run safety checker
         image, has_nsfw_concept = self.run_safety_checker(image)
