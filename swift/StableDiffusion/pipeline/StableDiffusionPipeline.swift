@@ -3,6 +3,8 @@
 
 import Accelerate
 import CoreGraphics
+import UniformTypeIdentifiers
+import CoreImage
 import CoreML
 import Foundation
 import NaturalLanguage
@@ -230,7 +232,7 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
         /// Setup schedulers
         let scheduler: [Scheduler] = (0..<config.imageCount).map { _ in
             switch config.schedulerType {
-            case .pndmScheduler: return PNDMScheduler(stepCount: config.stepCount)
+            case .pndmScheduler: return PNDMScheduler(stepCount: config.stepCount)      // XXXX
             case .dpmSolverMultistepScheduler: return DPMSolverMultistepScheduler(stepCount: config.stepCount, timeStepSpacing: config.schedulerTimestepSpacing)
             case .discreteFlowScheduler: return DiscreteFlowScheduler(stepCount: config.stepCount, timeStepShift: config.schedulerTimestepShift)
             }
@@ -258,7 +260,35 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
 
         // De-noising loop
         let timeSteps: [Int] = scheduler[0].calculateTimesteps(strength: timestepStrength)
-        for (step,t) in timeSteps.enumerated() {
+
+        //print(timeSteps)
+        print(scheduler[0])
+        print(type(of: scheduler[0]))
+        print(config)
+        exit(20)
+
+        /*
+         [981, 961, 961, 941, 921, 901, 881, 861, 841, 821, 801, 781, 761, 741,
+         721, 701, 681, 661, 641, 621, 601, 581, 561, 541, 521, 501, 481, 461,
+         441, 421, 401, 381, 361, 341, 321, 301, 281, 261, 241, 221, 201, 181,
+         161, 141, 121, 101, 81, 61, 41, 21, 1]
+[StableDiffusion.PNDMScheduler]
+         */
+
+
+        /*
+        print(latents.count)
+        print(latents[0].shape)
+        print(type(of: latents))
+        let foo = latents[0]
+        print(foo[0][0][61].scalars)
+        print("=====================")
+        print(latents)
+        exit(15)
+         */
+        
+
+        for (step, t) in timeSteps.enumerated() {
 
             // Expand the latents for classifier-free guidance
             // and input to the Unet noise prediction model
@@ -273,6 +303,8 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                 hiddenStates: hiddenStates,
                 images: controlNetConds
             )
+
+            // additionalResiduals is nil
             
             // Predict noise residuals from latent samples
             // and current time step conditioned on hidden states
@@ -283,8 +315,22 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                 additionalResiduals: additionalResiduals
             )
 
+            //print(noise)
+            
+            // guidanceScale is 7.5
+            
             noise = performGuidance(noise, config.guidanceScale)
 
+            /*
+            print(noise.count)
+            print(noise[0].shape)
+            print(type(of: noise[0]))
+            let foo = noise[0]
+            print(foo[0][1][5].scalars)
+            exit(16)
+             */
+
+            
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
             for i in 0..<config.imageCount {
@@ -294,11 +340,27 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                     sample: latents[i]
                 )
 
-                denoisedLatents[i] = scheduler[i].modelOutputs.last ?? latents[i]
+                denoisedLatents[i] = scheduler[i].modelOutputs.last! //?? latents[i]
             }
 
-            let currentLatentSamples = config.useDenoisedIntermediates ? denoisedLatents : latents
+            //print(config.imageCount)
+            //print(scheduler[0].modelOutputs.last)
+            //exit(18)
+            
 
+            /*
+            print(denoisedLatents.count)
+            print(denoisedLatents[0].shape)
+            let foo = denoisedLatents[0]
+            print(foo[0][2][42].scalars)
+            exit(17)
+                        */
+
+            // config.useDenoisedIntermediates is True
+            
+            //let currentLatentSamples = config.useDenoisedIntermediates ? denoisedLatents : latents
+
+            /*
             // Report progress
             let progress = Progress(
                 pipeline: self,
@@ -311,7 +373,30 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
             if !progressHandler(progress) {
                 // Stop if requested by handler
                 return []
+            }*/
+
+            /*
+            print("----------------")
+            print(step)
+            print(denoisedLatents.count)
+            print(denoisedLatents[0].shape)
+            print("----------------")
+            */
+            
+            /*
+            var temp = try decodeToImages(denoisedLatents, configuration: config)
+            let temp2 = temp[0]
+            let url = URL(filePath: "/tmp/swift.png")
+            guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil) else {
+                print("Failed to create destination for \(url)")
+                throw PipelineError.startingImageProvidedWithoutEncoder
             }
+            CGImageDestinationAddImage(dest, temp2!, nil)
+            if !CGImageDestinationFinalize(dest) {
+                print("Failed to save \(url)")
+            }
+            */
+            
         }
 
         if reduceMemory {

@@ -493,56 +493,43 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             )
 
         # 7. Prepare extra step kwargs
-        extra_step_kwargs = self.prepare_extra_step_kwargs(eta)
+        #extra_step_kwargs = self.prepare_extra_step_kwargs(eta)
 
+
+        #image = self.decode_latents(latents)
+        #image = self.numpy_to_pil(image)
+        #image[0].save(f"/tmp/python-0.png")
+        
         # 8. Denoising loop
         for i, t in enumerate(self.progress_bar(timesteps)):
             # expand the latents if we are doing classifier free guidance
-            latent_model_input = np.concatenate(
-                [latents] * 2) if do_classifier_free_guidance else latents
-            latent_model_input = self.scheduler.scale_model_input(
-                latent_model_input, t)
+            temp = np.concatenate( [latents] * 2)
+            latent_model_input = self.scheduler.scale_model_input(temp, t)
 
-            if isinstance(latent_model_input, torch.Tensor):
-                latent_model_input = latent_model_input.numpy()
-
-            # controlnet
-            if controlnet_cond:
-                control_net_additional_residuals = self.run_controlnet(
-                    sample=latent_model_input,
-                    timestep=np.array([t, t]),
-                    encoder_hidden_states=text_embeddings,
-                    controlnet_cond=controlnet_cond,
-                )
-            else:
-                control_net_additional_residuals = {}
-
-            # predict the noise residual
-            unet_additional_kwargs.update(control_net_additional_residuals)
+            assert (latent_model_input - temp).sum() == 0.0
 
             noise_pred = self.unet(
                 sample=latent_model_input.astype(np.float16),
                 timestep=np.array([t, t], np.float16),
                 encoder_hidden_states=text_embeddings.astype(np.float16),
-                **unet_additional_kwargs,
             )["noise_pred"]
 
             # perform guidance
-            if do_classifier_free_guidance:
-                noise_pred_uncond, noise_pred_text = np.split(noise_pred, 2)
-                noise_pred = noise_pred_uncond + guidance_scale * (
-                        noise_pred_text - noise_pred_uncond)
+            noise_pred_uncond, noise_pred_text = np.split(noise_pred, 2)
+            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
+
+            import ipdb; ipdb.set_trace()
+            
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(torch.from_numpy(noise_pred),
                                           t,
                                           torch.from_numpy(latents),
-                                          **extra_step_kwargs,
                                           ).prev_sample.numpy()
-
-            # call the callback, if provided
-            if callback is not None and i % callback_steps == 0:
-                callback(i, t, latents)
+            
+            #image = self.decode_latents(latents)
+            #image = self.numpy_to_pil(image)
+            #image[0].save(f"/tmp/python-{i}.png")
 
         # 8. Post-processing
         image = self.decode_latents(latents)

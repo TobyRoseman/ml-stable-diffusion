@@ -299,7 +299,7 @@ public final class PNDMScheduler: Scheduler {
     ///   - prevStep: The previous time step t−δ
     ///   - modelOutput: Predicted noise residual the current time step e_θ(x_t, t)
     /// - Returns: Computes previous sample x_(t−δ)
-    func previousSample(
+    func previousSamplen(
         _ sample: MLShapedArray<Float32>,
         _ timeStep: Int,
         _ prevStep: Int,
