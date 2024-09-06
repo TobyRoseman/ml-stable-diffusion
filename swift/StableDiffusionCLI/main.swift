@@ -255,7 +255,7 @@ struct StableDiffusionSample: ParsableCommand {
         log(String(format: "mean: %.2f, ", 1.0/sampleTimer.mean))
         log(String(format: "median: %.2f, ", 1.0/sampleTimer.median))
         log(String(format: "last %.2f", 1.0/sampleTimer.allSamples.last!))
-        log("] step/sec")
+        log("] step/sec!!")
 
         if saveEvery > 0, progress.step % saveEvery == 0 {
             let saveCount = (try? saveImages(progress.currentImages, step: progress.step)) ?? 0

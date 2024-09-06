@@ -285,6 +285,12 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
 
             noise = performGuidance(noise, config.guidanceScale)
 
+            print("noise")
+            print(noise)
+            print("\n\n=====================\n\n")
+            print("latents 0")
+            print(latents)
+
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
             for i in 0..<config.imageCount {
@@ -297,6 +303,24 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                 denoisedLatents[i] = scheduler[i].modelOutputs.last ?? latents[i]
             }
 
+            print("\n\n=====================\n\n")
+            print("latents 1")
+            print(latents)
+
+
+            exit(13)
+
+            
+            // config.useDenoisedIntermediates is True
+
+            // latents match across Python and Swift!
+            // Python is using latent not denoisedLatents, at all
+            
+            // denoisedLatents[0] and latents[0] are not the same during first iteration.
+            // by last iteration, they are basically the same.
+
+            // latents match, between Python and Swift, for early iteration, but then diverge
+            
             let currentLatentSamples = config.useDenoisedIntermediates ? denoisedLatents : latents
 
             // Report progress
@@ -312,15 +336,36 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                 // Stop if requested by handler
                 return []
             }
+
+            /*
+            print("DEBUG")
+            print(denoisedLatents[0].shape)
+            print(latents[0].shape)
+            print("\n\n=====================\n\n")
+            print(denoisedLatents)
+            print("\n\n=====================\n\n")
+            print(latents)
+            exit(10)
+             */
+            // step zero based
+            /*
+            if step % 10 == 0 {
+                print(step)
+                print(latents)
+                print("\n\n=====================\n\n")
+            }
+            */
+
         }
 
         if reduceMemory {
             controlNet?.unloadResources()
             unet.unloadResources()
         }
-
+        
         // Decode the latent samples to images
         return try decodeToImages(denoisedLatents, configuration: config)
+        //return try decodeToImages(latents, configuration: config)    // this is the same!
     }
 
     func generateLatentSamples(configuration config: Configuration, scheduler: Scheduler) throws -> [MLShapedArray<Float32>] {
