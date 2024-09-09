@@ -44,6 +44,35 @@ from typing import List, Optional, Union, Tuple
 from PIL import Image
 
 
+def compute_max_diff(a, b):
+    return np.max(np.abs(a - b))
+
+
+def compute_median_diff(a, b):
+    return np.median(np.abs(a - b))
+
+
+def compute_psnr(a, b):
+    """
+    Compute Peak Signal to Noise Ratio
+    """
+    assert len(a) == len(b)
+    max_b = np.abs(b).max()
+    sumdeltasq = 0.0
+
+    sumdeltasq = ((a - b) * (a - b)).sum()       # XXX: np.square(a-b).sum()
+
+    sumdeltasq /= b.size
+    sumdeltasq = np.sqrt(sumdeltasq)
+
+    eps = 1e-5
+    eps2 = 1e-10             # XXX: why two different eps?
+    psnr = 20 * np.log10((max_b + eps) / (sumdeltasq + eps2))
+
+    return psnr
+
+
+
 class CoreMLStableDiffusionPipeline(DiffusionPipeline):
     """ Core ML version of
     `diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline`
@@ -497,6 +526,14 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
 
         # 8. Denoising loop
         for i, t in enumerate(self.progress_bar(timesteps)):
+
+            print(i)
+            swift_latents = np.load(f"./swift_latents/latents-{i}.npy")
+            print(f"Max diff: {compute_max_diff(latents, swift_latents)}")
+            print(f"Median diff: {compute_median_diff(latents, swift_latents)}")
+            print(f"PSNR: {compute_psnr(latents, swift_latents)}")
+            print("\n\n")
+            
             # expand the latents if we are doing classifier free guidance
             latent_model_input = np.concatenate(
                 [latents] * 2) if do_classifier_free_guidance else latents
@@ -543,6 +580,17 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             # call the callback, if provided
             if callback is not None and i % callback_steps == 0:
                 callback(i, t, latents)
+
+
+        '''
+        swift_last = np.load("latents_last.npy")
+        print(f"Max diff: {compute_max_diff(latents, swift_last)}")
+        print(f"Median diff: {compute_median_diff(latents, swift_last)}")
+        print(f"PSNR: {compute_psnr(latents, swift_last)}")
+        '''
+        
+        exit(15)
+
 
         # 8. Post-processing
         image = self.decode_latents(latents)

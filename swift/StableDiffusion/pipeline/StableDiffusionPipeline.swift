@@ -260,6 +260,11 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
         let timeSteps: [Int] = scheduler[0].calculateTimesteps(strength: timestepStrength)
         for (step,t) in timeSteps.enumerated() {
 
+            print("latents-" + String(step))
+            print(latents[0])
+            print("====================================")
+            
+            
             // Expand the latents for classifier-free guidance
             // and input to the Unet noise prediction model
             let latentUnetInput = latents.map {
@@ -313,6 +318,11 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
                 return []
             }
         }
+
+
+        //print("latents_last")
+        //print(latents)
+        //exit(17)
 
         if reduceMemory {
             controlNet?.unloadResources()
