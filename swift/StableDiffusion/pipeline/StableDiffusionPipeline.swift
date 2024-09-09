@@ -285,6 +285,16 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
 
             noise = performGuidance(noise, config.guidanceScale)
 
+            print("latents-0")
+            print(latents[0])
+            print("====================================")
+
+            print("noise-0")
+            print(noise[0])
+            print("====================================")
+
+
+            
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
             for i in 0..<config.imageCount {
@@ -296,6 +306,11 @@ public struct StableDiffusionPipeline: StableDiffusionPipelineProtocol {
 
                 denoisedLatents[i] = scheduler[i].modelOutputs.last ?? latents[i]
             }
+
+            print("latents-1")
+            print(latents[0])
+            print("====================================")
+            exit(34)
 
             let currentLatentSamples = config.useDenoisedIntermediates ? denoisedLatents : latents
 

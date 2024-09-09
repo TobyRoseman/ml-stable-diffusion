@@ -44,6 +44,34 @@ from typing import List, Optional, Union, Tuple
 from PIL import Image
 
 
+def compute_max_diff(a, b):
+    return np.max(np.abs(a - b))
+
+
+def compute_median_diff(a, b):
+    return np.median(np.abs(a - b))
+
+
+def compute_psnr(a, b):
+    """
+    Compute Peak Signal to Noise Ratio
+    """
+    assert len(a) == len(b)
+    max_b = np.abs(b).max()
+    sumdeltasq = 0.0
+
+    sumdeltasq = ((a - b) * (a - b)).sum()       # XXX: np.square(a-b).sum()
+
+    sumdeltasq /= b.size
+    sumdeltasq = np.sqrt(sumdeltasq)
+
+    eps = 1e-5
+    eps2 = 1e-10             # XXX: why two different eps?
+    psnr = 20 * np.log10((max_b + eps) / (sumdeltasq + eps2))
+
+    return psnr
+
+
 class CoreMLStableDiffusionPipeline(DiffusionPipeline):
     """ Core ML version of
     `diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion.StableDiffusionPipeline`
@@ -533,6 +561,21 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                 noise_pred = noise_pred_uncond + guidance_scale * (
                         noise_pred_text - noise_pred_uncond)
 
+
+            swift_latents0 = np.load(f"./latents-0.npy")
+            print("Latents 0")
+            print(f"Max diff: {compute_max_diff(latents, swift_latents0)}")
+            print(f"Median diff: {compute_median_diff(latents, swift_latents0)}")
+            print(f"PSNR: {compute_psnr(latents, swift_latents0)}")
+            print("\n\n")
+
+            swift_noise0 = np.load(f"./noise-0.npy")
+            print("Noise 0")
+            print(f"Max diff: {compute_max_diff(noise_pred, swift_noise0)}")
+            print(f"Median diff: {compute_median_diff(noise_pred, swift_noise0)}")
+            print(f"PSNR: {compute_psnr(noise_pred, swift_noise0)}")
+            print("\n\n")
+
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(torch.from_numpy(noise_pred),
                                           t,
@@ -540,6 +583,15 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                                           **extra_step_kwargs,
                                           ).prev_sample.numpy()
 
+            swift_latents1 = np.load(f"./latents-1.npy")
+            print("Latents 1")
+            print(f"Max diff: {compute_max_diff(latents, swift_latents1)}")
+            print(f"Median diff: {compute_median_diff(latents, swift_latents1)}")
+            print(f"PSNR: {compute_psnr(latents, swift_latents1)}")
+            print("\n\n")
+            
+            exit(100)
+            
             # call the callback, if provided
             if callback is not None and i % callback_steps == 0:
                 callback(i, t, latents)
