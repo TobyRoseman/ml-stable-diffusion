@@ -450,7 +450,8 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             negative_prompt_2=None
         )
 
-        np.save("./BNNS/text_embeddings", text_embeddings)
+        # PSNR: 70.8
+        np.save("./classic_cpu/text_embeddings", text_embeddings)
 
         # 4. Prepare XL kwargs if needed
         unet_additional_kwargs = {}
@@ -530,7 +531,8 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             )["noise_pred"]
 
             if i == 0:
-                np.save("./BNNS/noise_pred-0", noise_pred)
+                # PSNR: 61
+                np.save("./classic_cpu/noise_pred-0", noise_pred)
 
             # perform guidance
             if do_classifier_free_guidance:
@@ -550,12 +552,14 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                 callback(i, t, latents)
 
 
-        np.save("./BNNS/final-latents", latents)
+        # PSNR: 24.8
+        np.save("./classic_cpu/final-latents", latents)
                 
         # 8. Post-processing
         image = self.decode_latents(latents)
 
-        np.save("./BNNS/image", image)
+        # PSNR: 13.3
+        np.save("./classic_cpu/image", image)
         
         # 9. Run safety checker
         image, has_nsfw_concept = self.run_safety_checker(image)
