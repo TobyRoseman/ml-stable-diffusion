@@ -450,8 +450,10 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             negative_prompt_2=None
         )
 
+        run_id = "cpu"
+        
         # PSNR: 70.8
-        np.save("./classic_cpu/text_embeddings", text_embeddings)
+        np.save(f"./{run_id}/text_embeddings", text_embeddings)
 
         # 4. Prepare XL kwargs if needed
         unet_additional_kwargs = {}
@@ -487,7 +489,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             latents,
         )
 
-        np.save(f"./classic_cpu/init-latents", latents)
+        np.save(f"./{run_id}/init-latents", latents)
 
         if controlnet_cond:
             controlnet_cond = self.prepare_control_cond(
@@ -534,8 +536,6 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
                 **unet_additional_kwargs,
             )["noise_pred"]
 
-            import ipdb; ipdb.set_trace()
-
             # noise_pred.dtype - fp32 for both
 
             '''
@@ -545,7 +545,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             33.06933868495889
             21.036124655329566
             '''
-            np.save(f"./classic_cpu/noise_pred-{i}", noise_pred)
+            np.save(f"./{run_id}/noise_pred-{i}", noise_pred)
 
             # perform guidance
             if do_classifier_free_guidance:
@@ -560,7 +560,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             25.580058259045245
             18.535405168735828
             '''
-            np.save(f"./classic_cpu/combinded-noise_pred-{i}", noise_pred)
+            np.save(f"./{run_id}/combinded-noise_pred-{i}", noise_pred)
 
             # compute the previous noisy sample x_t -> x_t-1
             latents = self.scheduler.step(torch.from_numpy(noise_pred),
@@ -576,7 +576,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             25.580058259045245
             18.535405168735828
             '''
-            np.save(f"./classic_cpu/latents-{i}", noise_pred)
+            np.save(f"./{run_id}/latents-{i}", noise_pred)
 
             # call the callback, if provided
             if callback is not None and i % callback_steps == 0:
@@ -584,7 +584,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
 
             image = self.decode_latents(latents)
             image = self.numpy_to_pil(image)
-            image[0].save(f"./classic_cpu/image-{i}.png")
+            image[0].save(f"./{run_id}/image-{i}.png")
 
 
 
@@ -593,17 +593,19 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
         # x24 slower!!
             
         # PSNR: 24.8
-        np.save("./classic_cpu/final-latents", latents)
+        np.save(f"./{run_id}/final-latents", latents)
                 
         # 8. Post-processing
         image = self.decode_latents(latents)
 
         # PSNR: 13.3
-        np.save("./classic_cpu/image", image)
+        np.save(f"./{run_id}/image", image)
         
         # 9. Run safety checker
-        #image, has_nsfw_concept = self.run_safety_checker(image)
+        image, has_nsfw_concept = self.run_safety_checker(image)
+        print(f"has_nsfw_concept: {has_nsfw_concept}")
 
+        
         # 10. Convert to PIL
         if output_type == "pil":
             image = self.numpy_to_pil(image)
@@ -612,7 +614,7 @@ class CoreMLStableDiffusionPipeline(DiffusionPipeline):
             return (image, has_nsfw_concept)
 
         return StableDiffusionPipelineOutput(
-            images=image, nsfw_content_detected=[[[[0.]]]])
+            images=image, nsfw_content_detected=has_nsfw_concept)
 
 
 def get_available_schedulers():
