@@ -46,7 +46,7 @@ torch.set_grad_enabled(False)
 from types import MethodType
 
 
-def _get_coreml_inputs(sample_inputs, args):
+def _get_coreml_inputs(sample_inputs):
     return [
         ct.TensorType(
             name=k,
@@ -126,11 +126,16 @@ def _convert_to_coreml(submodule_name, torchscript_module, sample_inputs,
         coreml_model.compute_unit = compute_unit
     else:
         logger.info(f"Converting {submodule_name} to CoreML..")
+
+        if not isinstance(sample_inputs[0], ct.TensorType):
+            import ipdb; ipdb.set_trace()
+            sample_inputs=_get_coreml_inputs(sample_inputs)
+
         coreml_model = ct.convert(
             torchscript_module,
             convert_to="mlprogram",
             minimum_deployment_target=ct.target.macOS13,
-            inputs=_get_coreml_inputs(sample_inputs, args),
+            inputs=sample_inputs,
             outputs=[ct.TensorType(name=name, dtype=np.float32) for name in output_names],
             compute_units=compute_unit,
             compute_precision=precision,
@@ -757,7 +762,7 @@ def convert_vae_encoder(pipe, args):
     gc.collect()
 
 
-def convert_unet(pipe, args, model_name = None):
+def convert_unet(pipe, args, model_name=None):
     """ Converts the UNet component of Stable Diffusion
     """
     if args.unet_support_controlnet:
@@ -872,9 +877,7 @@ def convert_unet(pipe, args, model_name = None):
             unet_cls = unet.UNet2DConditionModel
 
         reference_unet = unet_cls(**pipe.unet.config).eval()
-
-        load_state_dict_summary = reference_unet.load_state_dict(
-            pipe.unet.state_dict())
+        reference_unet.load_state_dict(pipe.unet.state_dict())
 
         if args.unet_support_controlnet:
             from .unet import calculate_conv2d_output_shape
@@ -936,12 +939,56 @@ def convert_unet(pipe, args, model_name = None):
         del pipe.unet
         gc.collect()
 
-        coreml_sample_unet_inputs = {
-            k: v.numpy().astype(np.float16)
-            for k, v in sample_unet_inputs.items()
-        }
+        # XXX: needs to work with xl and control 
 
+        #import ipdb; ipdb.set_trace()
+        
+        # Core ML model should accept a batch size of one or two.
 
+        sample_shape = sample_unet_inputs['sample'].shape
+        hidden_shape = sample_unet_inputs['encoder_hidden_states'].shape
+        coreml_sample_unet_inputs = [
+            ct.TensorType(
+                name="sample",
+                shape=ct.EnumeratedShapes(
+                    shapes=[(1,)+sample_shape[1:], sample_shape],
+                    default=sample_shape,
+                    ),
+                dtype=np.float16),
+            ct.TensorType(
+                name="timestep",
+                shape=ct.EnumeratedShapes(
+                    shapes=((1,), (2,)),
+                    default=(2,),
+                ),
+                dtype=np.float16),
+            ct.TensorType(
+                name="encoder_hidden_states",
+                shape=ct.EnumeratedShapes(
+                    shapes=[(1,)+hidden_shape[1:], hidden_shape],
+                    default=hidden_shape,
+                ),
+                dtype=np.float16),
+        ]
+        '''
+
+        coreml_sample_unet_inputs = [
+            ct.TensorType(
+                name="sample",
+                shape=(1, 4, 64, 64),
+                dtype=np.float16),
+            ct.TensorType(
+                name="timestep",
+                shape=(1,),
+                dtype=np.float16),
+            ct.TensorType(
+                name="encoder_hidden_states",
+                shape=(1, 1024, 1, 77),
+                dtype=np.float16),
+        ]
+        '''
+
+        
         coreml_unet, out_path = _convert_to_coreml(unet_name, reference_unet,
                                                    coreml_sample_unet_inputs,
                                                    ["noise_pred"], args)
@@ -988,8 +1035,12 @@ def convert_unet(pipe, args, model_name = None):
 
         # Parity check PyTorch vs CoreML
         if args.check_output_correctness:
+            import ipdb; ipdb.set_trace()
+
+            x_cm = {k: v.numpy().astype(np.float16) for k, v in sample_unet_inputs.items()}
+            
             coreml_out = list(
-                coreml_unet.predict(coreml_sample_unet_inputs).values())[0]
+                coreml_unet.predict(x_cm).values())[0]
             report_correctness(baseline_out, coreml_out,
                                "unet baseline PyTorch to reference CoreML")
 
@@ -1443,7 +1494,7 @@ def convert_controlnet(pipe, args):
 
 def get_pipeline(args):
     model_version = args.model_version
-
+    
     logger.info(f"Initializing DiffusionPipeline with {model_version}..")
     if args.custom_vae_version:
         from diffusers import AutoencoderKL
