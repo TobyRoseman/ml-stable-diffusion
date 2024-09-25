@@ -782,7 +782,7 @@ def convert_unet(pipe, args, model_name = None):
     # If original Unet does not exist, export it from PyTorch+diffusers
     elif not os.path.exists(out_path):
         # Prepare sample input shapes and values
-        batch_size = 2  # for classifier-free guidance
+        batch_size = 1  # for classifier-free guidance
         sample_shape = (
             batch_size,                    # B
             pipe.unet.config.in_channels,  # C
